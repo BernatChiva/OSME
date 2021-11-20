@@ -1,0 +1,32 @@
+#################################################
+# Albert Cheto albert.cheto@estudiantat.upc.edu #
+# Clara Tapia clara.tapia@estudiantat.upc.edu   #
+# November 2021									#
+#################################################
+
+reset;
+
+printf "\n#\n# Reading model and data files guc.mod, guc.dat:\n#\n";
+model tcmpa_uc_mic.mod;
+data tcmpa_I3E14_uc.dat;
+# Generation bid functions #################################
+for {g in G}
+{ read {t in T}: {b in bG} lbG[g,b,t] < ("bids\"&g&"_lbG.dat");
+read {t in T}: {b in bG} pbG[g,b,t] < ("bids\"&g&"_pbG.dat"); }
+# Purchase bid functions ###################################
+for {d in D}
+{ read {t in T}: {b in bD} lbD[d,b,t] < ("bids\"&d&"_lbD.dat");
+read {t in T}: {b in bD} pbD[d,b,t] < ("bids\"&d&"_pbD.dat"); }
+show;
+
+display price;
+
+option solver gurobi;
+#option cplex_options 'threads=8  mipgap= 0.0 mipdisplay=1 timing=1';
+solve;
+option display_eps 0;
+display _total_solve_time;
+
+display U;
+
+display {i in G, b in bG, t in T} ( lbG[i,b,t],  PG[i,b, t].rc,  Matched_G[i,b, t].dual);
