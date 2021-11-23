@@ -1,0 +1,142 @@
+#######################################################
+# Multi-Period Auction aggregated Bid.
+# Output files for the plot of the aggregated bid 
+# functions of model MPA
+# F.-Javier Heredia, http://gnom.upc.edu/heredia
+# Code under Creative Commons License CC BY-NC-ND 3.0
+# http://creativecommons.org/licenses/by-nc-nd/3.0/
+#######################################################
+#
+# To be included after problem tcmpa has been solved.
+# This script relies on the following data structure 
+# of model tcmpa.mod
+#
+# set G;                     # Set if generation units
+# set D;                     # Set of demand (loads)
+# set bG = 1..nbG;           # Set of generation bid blocks
+# set bD = 1..nbD;           # Set of demand bid blocks
+# set B = 1..nB;             # Set of busses
+# set T = 1..nT;             # Set of time periods
+# set GB{B} within G default {};      # Generation units at bus "k"                                       
+# set DB{B} within D default {};      # Loads units at bus "k"
+# set L within B cross B;    # Transmission lines
+# 
+# var PGT { G, {0} union T } >=0;
+# var  PG { G, bG, T }       >=0;
+# var PDT { D, T }           >=0;
+# var  PD { D, bD, T }       >=0;
+# var   P { (k,l) in L, T }  >= -smax[k,l], <= smax[k,l];
+# var  Th { B, T };
+# var   U { G, {0} union T} binary; 
+#
+# s.t. NPFE { k in B, t in T} : # Nodal Market Equilibrium constraints
+#######################################################
+
+print "[tcmpa2m]";
+
+redeclare param busL_file  symbolic;
+redeclare param  bus_file  symbolic;
+redeclare param  lbG_file  symbolic;
+redeclare param  pbG_file  symbolic;
+redeclare param   PG_file  symbolic;
+redeclare param  lbD_file  symbolic;
+redeclare param  pbD_file  symbolic;
+redeclare param   PD_file  symbolic;
+redeclare param   eq_file  symbolic;
+redeclare param   path     symbolic;
+redeclare param   bus_pre  symbolic := "bus-";
+
+let busL_file:= "tcmpa_busL.a2m";
+shell ("del "&busL_file);
+print { k in B}: bus_pre&k > (busL_file);
+
+redeclare param energy  { k in B, t in T } :=
+	sum{ g in G: g in GB[k] } PGT[g,t].val
+	# Inflow bus k
+	+ sum{ (l,k) in L : P[l,k,t].val > 0 } P[l,k,t].val
+	- sum{ (k,l) in L : P[k,l,t].val < 0 } P[k,l,t].val
+;
+
+param nodalSW { B, T };
+let {k in B, t in T} nodalSW[k,t] :=
+	# CS : Consumers surplus
+	  sum { i in D, b in bD : i in DB[k] } (lbD[i,b,t]-NPFE[k,t].dual)*PD[i,b,t].val
+	# PS : Producers surplus
+	- sum { i in G, b in bG : i in GB[k] } (lbG[i,b,t]-NPFE[k,t].dual)*PG[i,b,t].val
+	# + MS: surplus inflow
+	+ sum{ (l,k) in L : P[l,k,t].val > 0 } (NPFE[k,t].dual - NPFE[l,t].dual)*P[l,k,t].val
+	- sum{ (k,l) in L : P[k,l,t].val < 0 } (NPFE[k,t].dual - NPFE[l,t].dual)*P[k,l,t].val
+	# + MS: surplus outflow
+	+ sum{ (k,l) in L : P[k,l,t].val > 0 } (NPFE[l,t].dual - NPFE[k,t].dual)*P[k,l,t].val
+	- sum{ (l,k) in L : P[l,k,t].val < 0 } (NPFE[l,t].dual - NPFE[k,t].dual)*P[l,k,t].val
+;
+
+for {k in B}{
+	let path := bus_pre&k&"\";
+	shell ("del "&path&"*.a2m") ;
+	shell ("rmdir "&path)       ;
+	shell ("mkdir "&path)       ;
+	let bus_file:= path&"tcmpa_bus.a2m";
+	let lbG_file:= path&"tcmpa_lbG.a2m";
+	let pbG_file:= path&"tcmpa_pbG.a2m";
+	let  PG_file:= path&"tcmpa_PG.a2m";
+	let lbD_file:= path&"tcmpa_lbD.a2m";
+	let pbD_file:= path&"tcmpa_pbD.a2m";
+	let  PD_file:= path&"tcmpa_PD.a2m";
+	let  eq_file:= path&"tcmpa_eq.a2m";
+
+	option print_round 2;
+
+	print "bus_"&k > (bus_file);
+	print {t in T} : energy[k,t], NPFE[k,t], nodalSW[k,t] > (eq_file);
+	# lbG
+	print {t in T} : {g in GB[k], b in bG} lbG[g,b,t], 
+	# Positive Inflow => generation unit
+	{ (l,k) in L : P[l,k,t] > 0 }  NPFE[l,t],
+	# Negative Outflow => generation unit
+	{ (k,l) in L : P[k,l,t] < 0 }  NPFE[l,t] > (lbG_file);
+	# pbG
+	print {t in T} : {g in GB[k], b in bG} pbG[g,b,t], 
+	# Positive Inflow => generation unit
+	{ (l,k) in L : P[l,k,t] > 0 }  P[l,k,t].ub,
+	# Negative Outflow => generation unit
+	{ (k,l) in L : P[k,l,t] < 0 }  -P[k,l,t].lb > (pbG_file);
+	# PG
+	print {t in T} : {g in GB[k], b in bG} PG[g,b,t], 
+	# Positive Inflow => generation unit
+	{ (l,k) in L : P[l,k,t] > 0 }  P[l,k,t],
+	# Negative Outflow => generation unit
+	{ (k,l) in L : P[k,l,t] < 0 } -P[k,l,t] > (PG_file);
+
+	# lbD
+	print {t in T} : {d in DB[k], b in bD} lbD[d,b,t], 
+	# Negative Inflow => demand unit
+	{ (l,k) in L : P[l,k,t] < 0 }  NPFE[l,t],
+	# Positive Outflow => demand unit
+	{ (k,l) in L : P[k,l,t] > 0 }  NPFE[l,t] > (lbD_file);
+	
+	# pbD
+	print {t in T} : {d in DB[k], b in bD} pbD[d,b,t], 
+	# Negative Inflow => demand unit
+	{ (l,k) in L : P[l,k,t] < 0 }  -P[l,k,t].lb,
+	# Positive Outflow => demand unit
+	{ (k,l) in L : P[k,l,t] > 0 }  P[k,l,t].ub > (pbD_file);
+
+	# PD
+	print {t in T} : {d in DB[k], b in bD} PD[d,b,t], 
+	# Negative Inflow => demand unit
+	{ (l,k) in L : P[l,k,t] < 0 }  -P[l,k,t],
+	# Positive Outflow => demand unit
+	{ (k,l) in L : P[k,l,t] > 0 }   P[k,l,t] > (PD_file);
+
+	close bus_file;
+	close lbG_file;
+	close pbG_file;
+	close  PG_file;
+	close lbD_file;
+	close pbD_file;
+	close  PD_file;
+	close  eq_file;
+
+}
+

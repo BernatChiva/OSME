@@ -1,6 +1,6 @@
 # f.javier.heredia(at)upc.edu
 
- 
+
 # Parameters
 param nT;
 set T = 1..nT;             # Set of time periods
@@ -65,7 +65,7 @@ s.t. Total_Matched_G {i in G, t in T}: PGT[i,t] = sum{b in bG}PG[i,b,t];
 # Total matched demand
 s.t. Total_Matched_D {i in D, t in T}: PDT[i,t] = sum{b in bD}PD[i,b,t];
 # Nodal market equilibrium
-s.t. NPFE { k in B, t in T} :
+s.t. Nodal_Market_eq { k in B, t in T} :
 	sum{ (k,l) in L } P[k,l,t] - sum{ (l,k) in L} P[l,k,t] =
 	sum{ i in GB[k]} PGT[i,t] - sum{ i in DB[k]} PDT[i,t];
 # Line power flow equations
@@ -90,12 +90,3 @@ s.t. UCtU {i in G, t in tU[i]..nT} : sum{l in (t-tU[i]+1)..t} V[i,l] <= U[i,t];
 s.t. UCtD {i in G, t in tD[i]..nT} : sum{l in (t-tD[i]+1)..t} W[i,l] <= 1-U[i,t];
 # Initial state:
 s.t. U_0  { i in G }: U[i,0]  = u0[i];
-
-########## MIC ########################
-param price{T} default 40;
-#s.t. MIC{i in G}: (sum{t in T}U[i,t])*(-0.0*sum{b in bG, t in T}lbG[i,b,t]*pbG[i,b,t]
-#										+sum{b in bG, t in T}price[t]*PG[i,b,t]) >= 0;
-var U_total{G} binary; # 1 si la maquina sha engegat algun instant
-s.t. Turned_on {i in G, t in T}: U_total[i] >= U[i,t];			
-s.t. MIC{i in G}: 1 - U_total[i] >=1 -(sum{b in bG, t in T}price[t]*PG[i,b,t])/
-									(0.8*sum{b in bG, t in T}lbG[i,b,t]*pbG[i,b,t]);								

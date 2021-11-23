@@ -1,7 +1,7 @@
 # f.javier.heredia(at)upc.edu
 
-reset; 
-model tcmpa_uc_mic.mod;
+reset;
+model repeat.mod;
 data tcmpa_I3E14_uc.dat;
 
 # Generation bid functions #################################
@@ -20,14 +20,11 @@ solve;
 option display_eps 0;
 display _total_solve_time;
 
-/*
 param Energy {t in T} := sum{i in G} PGT[i,t].val;
 display SW, Energy ;
 display {t in T, i in G, b in bG } (lbG[i,b,t], pbG[i,b,t], PG[i,b,t].val);
 display {t in T, i in D, b in bD } (lbD[i,b,t], pbD[i,b,t], PD[i,b,t].val);
-*/
 
+#include mpa2m.run;
 display U;
 display {i in G, b in bG, t in T} ( lbG[i,b,t],  PG[i,b, t].rc,  Matched_G[i,b, t].dual);
-
-#include tcmpa2m.run;

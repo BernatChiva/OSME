@@ -1,0 +1,41 @@
+#######################################################
+# Generalized Unit Commitment. Script file.
+# F.-Javier Heredia, http://gnom.upc.edu/heredia
+# Code under Creative Commons License CC BY-NC-ND 3.0
+# http://creativecommons.org/licenses/by-nc-nd/3.0/
+#######################################################
+
+reset;
+option log_file 'guc.sol';
+
+printf "\n#\n# Reading model and data files guc.mod, guc.dat:\n#\n";
+model guc.mod;
+data  guc.dat;
+show;
+
+printf "\n#\n# Optimization:\n#\n\n";
+option solver cplex;
+option cplex_options 'threads=8  mipgap= 0.0 timing=1'; 
+solve;
+option display_eps 0.0000001;
+display _total_solve_time;
+
+printf "\n#\n# Optimal solution:\n#\n";
+
+# Unit commitment:
+printf "\n# Unit commitment:\n\n";
+display PG;
+# Line power flow:
+printf "\n# Line power flow:\n\n";
+printf {(i,j) in L}: "(%2i,%2i)", i,j;printf "\n";
+for {t in T} {printf { (i,j) in L}: " %6.2f", P[i,j,t].val;printf "\n";};
+
+printf "\n# Active ramps:\n\n";
+display {i in G, t in T : Ramp[i,t].lslack==0 or Ramp[i,t].uslack==0} (-rd[i], PG[i,t]-PG[i,t-1],ru[i]);
+
+printf "\n# Start-up and shut down costs:\n\n";
+for {i in G, t in T}{if V[i,t].val=1 then printf "i=%2s t=%2i UP  , csud=%8.2f\n", i, t, csud[i]; else if W[i,t].val = 1 then  printf "i=%2s t=%2i DOWN, csud=%8.2f\n", i, t, csud[i]};
+
+option log_file '';
+close guc.sol;
+display U;
