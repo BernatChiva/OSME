@@ -85,17 +85,19 @@ s.t. Initial_PO {i in G}: PGT[i,0] = pg0[i];
 var V    { G, T } binary;                                # Start-up variable.
 var W    { G, T } binary;								# shut-down variable.
 # Unit commitment: as in Morales et al. OR Spectrum (2015) DOI 10.1007/s00291-015-0400-4
-s.t. UCdef {i in G, t in T} : U[i,t] - U[i,t-1] = V[i,t] - W[i,t];
-s.t. UCtU {i in G, t in tU[i]..nT} : sum{l in (t-tU[i]+1)..t} V[i,l] <= U[i,t];
-s.t. UCtD {i in G, t in tD[i]..nT} : sum{l in (t-tD[i]+1)..t} W[i,l] <= 1-U[i,t];
+#s.t. UCdef {i in G, t in T} : U[i,t] - U[i,t-1] = V[i,t] - W[i,t];
+#s.t. UCtU {i in G, t in tU[i]..nT} : sum{l in (t-tU[i]+1)..t} V[i,l] <= U[i,t];
+#s.t. UCtD {i in G, t in tD[i]..nT} : sum{l in (t-tD[i]+1)..t} W[i,l] <= 1-U[i,t];
 # Initial state:
-s.t. U_0  { i in G }: U[i,0]  = u0[i];
+#s.t. U_0  { i in G }: U[i,0]  = u0[i];
 
 ########## MIC ########################
 param price{T} default 40;
-#s.t. MIC{i in G}: (sum{t in T}U[i,t])*(-0.0*sum{b in bG, t in T}lbG[i,b,t]*pbG[i,b,t]
-#										+sum{b in bG, t in T}price[t]*PG[i,b,t]) >= 0;
+param nit >= 0;							 # number of iterations of the heuristic
+param perc_mic default 0.9;  # percentage of the initial offer to use or not the mic constraints
+param aux_price{T} default 0;
+param aux_price2{T} default 0;  # to avoid bouncing back
 var U_total{G} binary; # 1 si la maquina sha engegat algun instant
 s.t. Turned_on {i in G, t in T}: U_total[i] >= U[i,t];			
 s.t. MIC{i in G}: 1 - U_total[i] >=1 -(sum{b in bG, t in T}price[t]*PG[i,b,t])/
-									(0.8*sum{b in bG, t in T}lbG[i,b,t]*pbG[i,b,t]);								
+									(perc_mic*sum{b in bG, t in T}lbG[i,b,t]*pbG[i,b,t]);								

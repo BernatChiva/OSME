@@ -13,13 +13,35 @@ for {d in D}
 { read {t in T}: {b in bD} lbD[d,b,t] < ("bids\"&d&"_lbD.dat");
 read {t in T}: {b in bD} pbD[d,b,t] < ("bids\"&d&"_pbD.dat"); }
 
-
 option solver cplex;
-option cplex_options 'threads=8  mipgap= 0.0 mipdisplay=1 timing=1';
-solve;
-option display_eps 0;
-display _total_solve_time;
+#option cplex_options 'threads=8  mipgap= 0.0 mipdisplay=1 timing=1';
 
+let nit:= 0;
+let {t in T}price[t] := max({g in G, b in bG}lbG[g, b, t]);
+# Heuristic iterations
+repeat{
+	printf "\nITERATION %d\n\n", nit;
+	display {t in T} (price[t], aux_price[t], aux_price2[t]);
+	if (sum{t in T}abs(price[t] - aux_price[t]))/sum{t in T}price[t] < 1e-3 then {
+		printf "\nConvergence criteria achieved \n";
+		break;
+	}
+	if sum{t in T} abs(price[t] - aux_price2[t]) < 1e-3 then {
+		printf "\nBouncing back\n";
+		break;
+	 }
+	solve;
+	#option display_eps 0;
+	#display _total_solve_time;
+		
+	# We update with the new prices
+	let {t in T}aux_price2[t]:= aux_price[t];
+	let {t in T}aux_price[t]:= price[t];
+	let {t in T}price[t]:= max({i in G, b in bG}lbG[i,b,t] +  PG[i,b, t].rc +  Matched_G[i,b, t].dual);
+	let nit:= nit+1;
+}
+
+display price;
 /*
 param Energy {t in T} := sum{i in G} PGT[i,t].val;
 display SW, Energy ;
@@ -28,6 +50,6 @@ display {t in T, i in D, b in bD } (lbD[i,b,t], pbD[i,b,t], PD[i,b,t].val);
 */
 
 display U;
-display {i in G, b in bG, t in T} ( lbG[i,b,t],  PG[i,b, t].rc,  Matched_G[i,b, t].dual);
+#display {i in G, b in bG, t in T} ( lbG[i,b,t],  PG[i,b, t].rc,  Matched_G[i,b, t].dual);
 
 #include tcmpa2m.run;
