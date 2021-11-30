@@ -100,4 +100,6 @@ param aux_price2{T} default 0;  # to avoid bouncing back
 var U_total{G} binary; # 1 si la maquina sha engegat algun instant
 s.t. Turned_on {i in G, t in T}: U_total[i] >= U[i,t];			
 s.t. MIC{i in G}: 1 - U_total[i] >=1 -(sum{b in bG, t in T}price[t]*PG[i,b,t])/
-									(perc_mic*sum{b in bG, t in T}lbG[i,b,t]*pbG[i,b,t]);								
+									(perc_mic*sum{b in bG, t in T}lbG[i,b,t]*pbG[i,b,t]);	
+									# aqui es pot sumar epsilon al denominador per evitar 
+									# que peti quan perc_mic = 0							
