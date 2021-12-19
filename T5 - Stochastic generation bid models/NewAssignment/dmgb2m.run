@@ -1,0 +1,151 @@
+#######################################################
+# Day-ahead Market Generation Bid.
+# Output files for the plot of the optimal generation
+# bid functions of model DMGB-**
+# F.-Javier Heredia, http://gnom.upc.edu/heredia
+# Code under Creative Commons License CC BY-NC-ND 3.0
+# http://creativecommons.org/licenses/by-nc-nd/3.0/
+#######################################################
+# To be included after problem DMGB, DMGB-R or DMGB-RB has been solved.
+#
+# In order to work, the following data structure must be created
+# before calling this script:
+# 
+# set G;                             # Set of generation units
+# set T ordered = 1..nT;             # Set of time periods
+# set S ordered = 1..nS;             # Set of time periods
+#
+# param case;                        # identifier of the model solved.
+#
+# param cq    { G };                 # Quadratic cost coeficients (BTu/hMW2)
+# param cl    { G };                 # Linear cost coeficients (BTu/MWh)
+# param pgmin { G };                 # Minimum power output (MW)
+# param pgmax { G };                 # Minimum power output (MW)
+# param laD{ T, S };                 # DAM clearing prices scenarios
+# param gu symbolic in G;            # Unit to be plotted
+#
+# var PGD  { G, {0} union T, S} >=0; # Power generation of unit "i" (MW)
+# var PGB  { G, {0} union T}    >=0; # Power generation of unit "i" (MW)
+# var U    { G, {0} union T} binary; # Unit commitment
+#
+#######################################################
+# The parameters redeclared inside the script are:
+#
+# param lbg{T,G,S};
+# param pbg{T,G,S};
+# param la_min{T,G};
+# param lbg_min{T,G};
+# param pbg_min{T,G};
+# param lbg_max{T,G};
+# param pbg_max{T,G};
+# param pgmin_BC{T,G};
+# param pgmax_BC{T,G};
+# param laDmax;
+# param path      symbolic;
+# param lbg_file  symbolic;
+# param pbg_file  symbolic;
+# param  tu_file  symbolic;
+# param pgb_file  symbolic;
+# 
+#######################################################
+# Output files:
+# This script generates a folder "g\case" for every generation unit g in G where
+# "case" is the string in the symbolic parameter "case".
+# The files inside every folders "g/case" are:
+#
+# dmgb_rb_lbg.a2m: price  of the blocks of the optimal bid functon.
+# dmgb_rb_pbg.a2m: energy of the blocks of the optimal bid functon.
+#  dmgb_rb_tu.a2m: cq[g], cl[g], pgmin[g], pgmax[g], laDmaxcq[g]
+# dmgb_rb_pgb.a2m: PGB
+#
+#######################################################
+
+print "[dmgb2m]";
+
+##################################################
+# [dmgb2m] data structure
+##################################################
+
+redeclare param lbg{T,G,S};
+redeclare param pbg{T,G,S};
+redeclare param la_min{T,G};
+redeclare param lbg_min{T,G};
+redeclare param pbg_min{T,G};
+redeclare param lbg_max{T,G};
+redeclare param pbg_max{T,G};
+redeclare param pgmin_BC{T,G};
+redeclare param pgmax_BC{T,G};
+redeclare param laDmax;
+redeclare param path      symbolic;
+redeclare param lbg_file  symbolic;
+redeclare param pbg_file  symbolic;
+redeclare param  tu_file  symbolic;
+redeclare param pgb_file  symbolic;
+
+let laDmax:= 1.1*max {t in T, s in S} (laD[t,s]);
+#############################
+# Set Ss is the set of scenarios reordered by increasing value of laD:
+redeclare set Ss{T} ordered default {};
+redeclare set Ss1 ordered default {};
+for {t in T}
+{
+	let Ss1:= 1..nS;
+	repeat until (card(Ss[t])=card(S))
+	{
+ 		for {s in Ss1}
+ 		{
+   			if laD[t,s] <= min{r in Ss1} laD[t,r] then
+   			{
+      			let  Ss[t]:= Ss[t]  union {s};
+      			let    Ss1:= Ss1 diff  {s};
+      		}
+      	}
+      }
+}
+#############################
+#pg_*_BC
+let {t in T, g in G} pgmin_BC[t,g]:= max(0,pgmin[g]-PGB[g,t].val);
+let {t in T, g in G} pgmax_BC[t,g]:= pgmax[g]-PGB[g,t].val;
+# pbg:    
+let {t in T, g in G} pbg_min[t,g]:= U[g,t].val*pgmin_BC[t,g];
+let {t in T, g in G} pbg_max[t,g]:= U[g,t].val*(pgmax_BC[t,g]-PGD[g,t,last(Ss[t])].val);
+let {t in T, g in G, s in Ss[t]}
+	pbg[t,g,s]:= if s = first(Ss[t]) then
+					U[g,t].val*(PGD[g,t,s].val - pgmin_BC[t,g])
+	 			 else
+	 			 	U[g,t].val*(PGD[g,t,s].val - PGD[g,t,prev(s,Ss[t])].val);
+# lbg
+let {t in T, g in G, s in Ss[t]} lbg[t,g,s]:= U[g,t].val*laD[t,s];
+let {t in T, g in G}
+	lbg_min[t,g]:= 0.0;
+let {t in T, g in G}
+	lbg_max[t,g]:=	U[g,t].val*
+					if pbg_max[t,g] < 0.0001 then
+						laD[t,last(Ss[t])]
+					else
+						laDmax;
+#
+let {t in T, g in G}  la_min[t,g]:= U[g,t].val*(2*cq[g]*pgmin_BC[t,g]+cl[g]);
+
+for {g in G}{
+	let path :=g&"\"&case&"\";
+	shell ("del "&path&"*.a2m") ;
+	shell ("rmdir "&path)       ;
+	shell ("mkdir "&path)       ;
+
+	let lbg_file:= path&"\dmgb_lbg.a2m";
+	let pbg_file:= path&"\dmgb_pbg.a2m";
+	let  tu_file:= path&"\dmgb_tu.a2m";
+	let pgb_file:= path&"\dmgb_pgb.a2m";
+
+	option print_round 2;
+	print {t in T}: lbg_min[t,g], {s in Ss[t]} lbg[t,g,s], lbg_max[t,g] > (lbg_file);
+	print {t in T}: pbg_min[t,g], {s in Ss[t]} pbg[t,g,s], pbg_max[t,g] > (pbg_file);
+	print cq[g], cl[g], pgmin[g], pgmax[g], laDmax                     > (tu_file);
+	print {t in T}: PGB[g,t].val                                          > (pgb_file);
+
+	close lbg_file;
+	close pbg_file;
+	close tu_file;
+	close pgb_file;
+}

@@ -1,0 +1,19 @@
+#######################################################
+# DMBG-RB. Thermal units.
+# F.-Javier Heredia. http://gnom.upc.edu/heredia
+# Code under Creative Commons License CC BY-NC-ND 3.0
+# http://creativecommons.org/licenses/by-nc-nd/3.0/
+#######################################################
+
+set G := ALL1 ROB1 NRC2 NRC3;
+
+param  loadBC := 700;
+param priceBC := 50;
+
+param : cq   cl     cb      csu     csd     pgmin  pgmax  ru    rd     tU   tD   pg0    u0:=    
+ALL1    0.01 38.28  1432.50 1241.29 1241.29 160.00 350.00 63.33 95.00  3.00 2.00 160.00 1    
+ROB1    0.02 39.17  870.92  1308.87 1308.87 160.00 370.70 70.23 105.35 3.00 2.00 160.00 1    
+NRC2    0.08 26.76  3599.94 1246.67 1246.67 160.00 364.10 68.03 102.05 3.00 2.00 160.00 1    
+NRC3    0.01 38.35  1946.43 1958.97 1958.97 90.00  350.00 86.67 130.00 3.00 2.00 90.00  1    
+;
+
